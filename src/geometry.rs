@@ -3,19 +3,18 @@ use crate::math::Ray;
 use crate::material::Material;
 use rand::Rng;
 
-// Структура для хранения информации о точке пересечения
 pub struct HitRecord {
     pub t: f32,
     pub point: Vec3,
     pub normal: Vec3,
-    pub material: Material, // Добавили материал
+    pub material: Material,
 }
 
 pub struct Triangle {
     pub v0: Vec3,
     pub v1: Vec3,
     pub v2: Vec3,
-    pub material: Material, // Изменили цвет на материал
+    pub material: Material,
 }
 
 impl Triangle {
@@ -25,7 +24,7 @@ impl Triangle {
 
     // Алгоритм Мёллера — Трумбора
     pub fn intersect(&self, ray: &Ray) -> Option<HitRecord> {
-        let epsilon = 1e-6; // Защита от погрешностей float
+        let epsilon = 1e-6;
 
         let e1 = self.v1 - self.v0;
         let e2 = self.v2 - self.v0;
@@ -75,7 +74,6 @@ impl Triangle {
         None // Пересечение находится позади камеры (t < 0)
     }
 
-    // Вычисление площади треугольника (нужно для оценки мощности источника)
     pub fn area(&self) -> f32 {
         let e1 = self.v1 - self.v0;
         let e2 = self.v2 - self.v0;
@@ -86,7 +84,6 @@ impl Triangle {
     pub fn sample_point(&self) -> Vec3 {
         let mut rng = rand::thread_rng();
         
-        // Используем gen_range вместо gen(), чтобы избежать конфликта с зарезервированным словом
         let mut r1: f32 = rng.gen_range(0.0..1.0);
         let mut r2: f32 = rng.gen_range(0.0..1.0);
 

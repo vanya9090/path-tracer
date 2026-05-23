@@ -11,18 +11,17 @@ impl Ray {
     pub fn new(origin: Vec3, direction: Vec3) -> Self {
         Self {
             origin,
-            // Направление всегда должно быть нормализовано (длина = 1)
             direction: direction.normalize(),
         }
     }
 
-    // Функция для получения точки на луче на расстоянии t: P(t) = A + t * b
+    // P(t) = A + t * b
     pub fn at(&self, t: f32) -> Vec3 {
         self.origin + self.direction * t
     }
 }
 
-// Создание локальной системы координат (касательные векторы) вокруг нормали
+// Создание локальной системы координат вокруг нормали
 pub fn create_coordinate_system(n: Vec3) -> (Vec3, Vec3, Vec3) {
     let nt = if n.x.abs() > n.y.abs() {
         Vec3::new(n.z, 0.0, -n.x) / (n.x * n.x + n.z * n.z).sqrt()

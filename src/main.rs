@@ -19,7 +19,6 @@ use rayon::prelude::*;
 const WIDTH: usize = 500;
 const HEIGHT: usize = 500;
 
-// Вспомогательная функция для добавления прямоугольника (из 2 треугольников)
 fn add_quad(scene: &mut Scene, v0: Vec3, v1: Vec3, v2: Vec3, v3: Vec3, mat: Material) {
     scene.add(Triangle::new(v0, v1, v2, mat));
     scene.add(Triangle::new(v0, v2, v3, mat));
@@ -80,66 +79,44 @@ fn add_box(scene: &mut Scene, min: Vec3, max: Vec3, mat: Material) {
     add_quad(scene, Vec3::new(min.x, max.y, max.z), Vec3::new(min.x, max.y, min.z), Vec3::new(max.x, max.y, min.z), Vec3::new(max.x, max.y, max.z), mat);
 }
 
-// Построение Корнеллской коробки
 fn build_scene() -> Scene {
     let mut scene = Scene::new();
 
-    // Базовые материалы комнаты
     let red = Material::diffuse(Vec3::new(0.8, 0.1, 0.1));
     let green = Material::diffuse(Vec3::new(0.1, 0.8, 0.1));
     let white = Material::diffuse(Vec3::new(0.8, 0.8, 0.8));
     
-    // Материалы объектов
     let mirror = Material::specular();
     let yellow = Material::diffuse(Vec3::new(0.8, 0.7, 0.1));
     let magenta = Material::diffuse(Vec3::new(0.7, 0.1, 0.7));
+    let light_wall = Material::light(Vec3::new(1.0, 1.0, 1.0));
 
-    // =====================================
-    // СТЕНЫ КОМНАТЫ
-    // =====================================
     add_quad(&mut scene, Vec3::new(-1.0, -1.0, 1.0), Vec3::new(-1.0, 1.0, 1.0), Vec3::new(-1.0, 1.0, -3.0), Vec3::new(-1.0, -1.0, -3.0), red); // Левая
     add_quad(&mut scene, Vec3::new(1.0, -1.0, -3.0), Vec3::new(1.0, 1.0, -3.0), Vec3::new(1.0, 1.0, 1.0), Vec3::new(1.0, -1.0, 1.0), green); // Правая
     add_quad(&mut scene, Vec3::new(-1.0, -1.0, 1.0), Vec3::new(-1.0, -1.0, -3.0), Vec3::new(1.0, -1.0, -3.0), Vec3::new(1.0, -1.0, 1.0), white); // Пол
     add_quad(&mut scene, Vec3::new(-1.0, 1.0, 1.0), Vec3::new(1.0, 1.0, 1.0), Vec3::new(1.0, 1.0, -3.0), Vec3::new(-1.0, 1.0, -3.0), white); // Потолок
     add_quad(&mut scene, Vec3::new(-1.0, -1.0, -3.0), Vec3::new(-1.0, 1.0, -3.0), Vec3::new(1.0, 1.0, -3.0), Vec3::new(1.0, -1.0, -3.0), white); // Задняя
-    add_quad(&mut scene, Vec3::new(1.0, -1.0, 1.0), Vec3::new(1.0, 1.0, 1.0), Vec3::new(-1.0, 1.0, 1.0), Vec3::new(-1.0, -1.0, 1.0), white); // Передняя
+    add_quad(&mut scene, Vec3::new(1.0, -1.0, 1.0), Vec3::new(1.0, 1.0, 1.0), Vec3::new(-1.0, 1.0, 1.0), Vec3::new(-1.0, -1.0, 1.0), mirror); // Передняя
 
-    // =====================================
-    // ОБЪЕКТЫ
-    // =====================================
-    // 1. Высокий зеркальный блок справа (отражает всю комнату)
     add_box(&mut scene, Vec3::new(0.2, -1.0, -2.5), Vec3::new(0.7, 0.2, -1.9), mirror);
 
-    // 2. Желтая пирамида слева на заднем плане
     add_pyramid(&mut scene, Vec3::new(-0.5, -1.0, -2.2), 0.7, 0.9, yellow);
 
-    // 3. Пурпурная полигональная сфера на переднем плане
-    // add_sphere(&mut scene, Vec3::new(-0.3, -0.65, -1.2), 0.35, magenta);
-
-    // =====================================
-    // ИСТОЧНИКИ СВЕТА
-    // =====================================
-    // 1. Основная яркая лампа на потолке
-    let light_main = Material::light(Vec3::new(2.0, 2.0, 2.0));
+    let light_main = Material::light(Vec3::new(15.0, 15.0, 15.0));
     add_quad(&mut scene, 
         Vec3::new(-0.3, 0.99, -1.7), Vec3::new(0.3, 0.99, -1.7), 
         Vec3::new(0.3, 0.99, -2.3), Vec3::new(-0.3, 0.99, -2.3), light_main);
 
-    // 2. Лампа на правой зеленой стене (теплый свет)
-    let light_wall = Material::light(Vec3::new(1.0, 1.0, 1.0));
     add_quad(&mut scene, 
         Vec3::new(0.99, -0.2, -1.5), Vec3::new(0.99, 0.2, -1.5), 
         Vec3::new(0.99, 0.2, -1.9), Vec3::new(0.99, -0.2, -1.9), light_wall);
 
-    // 3. ПАРЯЩАЯ голубая сфера-лампочка (холодный неоновый свет)
-    // Будет висеть в воздухе между камерой и остальными объектами
-    let light_floating = Material::light(Vec3::new(0.5, 3.0, 15.0));
+    let light_floating = Material::light(Vec3::new(1.0, 6.0, 30.0));
     add_sphere(&mut scene, Vec3::new(0.3, -0.1, -1.0), 0.15, light_floating);
 
     scene
 }
 
-// Оставляем параметр depth
 fn ray_color(ray: &Ray, scene: &Scene, depth: u32) -> Vec3 {
     if depth >= 50 {
         return Vec3::ZERO;
@@ -152,48 +129,55 @@ fn ray_color(ray: &Ray, scene: &Scene, depth: u32) -> Vec3 {
 
         let mut final_color = Vec3::ZERO;
 
-        // ==========================================
-        // 1. ПРЯМОЕ ОСВЕЩЕНИЕ (Direct Illumination)
-        // ==========================================
+        // 1. Direct Illumination
         let lights: Vec<&Triangle> = scene.triangles.iter()
             .filter(|t| t.material.emission.length_squared() > 0.0)
             .collect();
 
         if !lights.is_empty() {
-            // ШАГ 1: Вычисляем "мощность" каждого треугольника-источника.
-            // Мощность = яркость (длина вектора emission) * площадь треугольника
-            let mut total_power = 0.0;
-            let mut powers = Vec::with_capacity(lights.len());
+            // ШАГ 1: Вычисляем вероятность каждого треугольника-источника.
+            // вероятность = intensity * площадь треугольника * cos theta / r^2
+            let mut total_weight = 0.0;
+            let mut weights = Vec::with_capacity(lights.len());
 
             for light in &lights {
-                let power = light.material.emission.length() * light.area();
-                powers.push(power);
-                total_power += power;
+                // Центр и расстояние
+                let light_center = (light.v0 + light.v1 + light.v2) / 3.0;
+                let dir_to_light = light_center - hit.point;
+                let dist_sq = dir_to_light.length_squared().max(0.01);
+                let dir_to_light_norm = dir_to_light.normalize();
+
+                // Нормаль источника света
+                let e1 = light.v1 - light.v0;
+                let e2 = light.v2 - light.v0;
+                let light_normal = e1.cross(e2).normalize();
+
+                let cos_theta_y = light_normal.dot(-dir_to_light_norm).max(0.0);
+                let base_power = light.material.emission.length() * light.area();
+                let weight = (base_power * cos_theta_y) / dist_sq;
+                
+                weights.push(weight);
+                total_weight += weight;
             }
 
-            // ШАГ 2: Выборка по значимости (Importance Sampling)
-            // Бросаем случайную величину от 0 до суммарной мощности
-            let mut rng = rand::rng(); // или SmallRng::from_entropy(), если используете его
-            let random_val: f32 = rng.random_range(0.0..total_power);
+            let mut rng = rand::rng(); 
+            let random_val: f32 = rng.random_range(0.0..total_weight);
             
             let mut current_sum = 0.0;
-            let mut selected_idx = 0;
+            let mut selected_idx = lights.len() - 1; 
 
-            // Находим, в какой "отрезок мощности" попало наше случайное число
-            for (i, &power) in powers.iter().enumerate() {
-                current_sum += power;
-                if random_val <= current_sum {
+            for (i, &weight) in weights.iter().enumerate() {
+                current_sum += weight;
+                if random_val < current_sum {
                     selected_idx = i;
                     break;
                 }
             }
 
             let light_tri = lights[selected_idx];
-            
-            // ВАЖНО: Вероятность того, что мы выбрали именно этот треугольник
-            let light_prob = powers[selected_idx] / total_power;
+            let light_prob = weights[selected_idx] / total_weight;
 
-            // ШАГ 3: Расчет освещения от выбранного источника
+            // ШАГ 2: Расчет освещения от выбранного источника
             let light_point = light_tri.sample_point();
             let dir_to_light = light_point - hit.point;
             let distance_to_light = dir_to_light.length();
@@ -205,20 +189,16 @@ fn ray_color(ray: &Ray, scene: &Scene, depth: u32) -> Vec3 {
                 if shadow_hit.t >= distance_to_light - 0.01 {
                     let cos_theta = hit.normal.dot(dir_to_light_norm).max(0.0);
                     
-                    // Улучшение: Теперь нормаль лампы считается честно из ее вершин,
-                    // а не захардкожена. Это позволит ставить лампы на стены!
                     let e1 = light_tri.v1 - light_tri.v0;
                     let e2 = light_tri.v2 - light_tri.v0;
                     let light_normal = e1.cross(e2).normalize(); 
                     
-                    // Проверяем, светит ли лампа в нашу сторону (лицевой ли стороной)
                     let cos_theta_prime = light_normal.dot(-dir_to_light_norm).max(0.0);
 
                     if cos_theta_prime > 0.0 {
                         let geometry_term = (cos_theta * cos_theta_prime) / (distance_to_light * distance_to_light);
                         let brdf = hit.material.color / std::f32::consts::PI;
 
-                        // ФОРМУЛА МОНТЕ-КАРЛО: 
                         // Вклад = (BRDF * Emission * Геометрия * Площадь_лампы) / Вероятность_выбора_лампы
                         final_color += (brdf * light_tri.material.emission * geometry_term * light_tri.area()) / light_prob;
                     }
@@ -226,17 +206,11 @@ fn ray_color(ray: &Ray, scene: &Scene, depth: u32) -> Vec3 {
             }
         }
 
-        // ==========================================
-        // 2. РУССКАЯ РУЛЕТКА (Russian Roulette)
-        // ==========================================
         let mut rng = rand::rng();
 
-        // Максимальная компонента цвета - это наша вероятность выжить (от 0.0 до 1.0)
         let max_color = hit.material.color.x.max(hit.material.color.y).max(hit.material.color.z);
-        // Зажимаем вероятность, чтобы луч всегда имел хотя бы 10% шанс выжить (избегаем деления на 0)
         let survival_prob = max_color.clamp(0.1, 0.95);
 
-        // Чтобы картинка была качественнее, не убиваем лучи на первых 2-х отскоках
         let is_survived = if depth > 2 {
             rng.random_range(0.0..1.0) <= survival_prob
         } else {
@@ -244,16 +218,12 @@ fn ray_color(ray: &Ray, scene: &Scene, depth: u32) -> Vec3 {
         };
 
         if !is_survived {
-            // Луч поглощен! Возвращаем только то, что собрали от прямой лампы
             return final_color;
         }
 
-        // ЗАМЕНА 2: Фактор компенсации. Выжившие лучи должны стать ярче.
         let rr_factor = if depth > 2 { 1.0 / survival_prob } else { 1.0 };
 
-        // ==========================================
-        // 3. ГЛОБАЛЬНОЕ ОСВЕЩЕНИЕ (Indirect Illumination)
-        // ==========================================
+        // 3. Indirect Illumination
         let prob: f32 = rng.gen_range(0.0..1.0);
 
         if prob < hit.material.kd {
@@ -264,7 +234,6 @@ fn ray_color(ray: &Ray, scene: &Scene, depth: u32) -> Vec3 {
             let bounce_ray = Ray::new(hit.point + hit.normal * 0.001, world_dir.normalize());
             let indirect_color = ray_color(&bounce_ray, scene, depth + 1);
             
-            // ЗАМЕНА 3: Умножаем на rr_factor
             final_color += hit.material.color * indirect_color * rr_factor;
 
         } else if prob < hit.material.kd + hit.material.ks {
@@ -274,7 +243,6 @@ fn ray_color(ray: &Ray, scene: &Scene, depth: u32) -> Vec3 {
             let bounce_ray = Ray::new(hit.point + hit.normal * 0.001, reflect_dir.normalize());
             let indirect_color = ray_color(&bounce_ray, scene, depth + 1);
             
-            // ЗАМЕНА 3: Умножаем на rr_factor
             final_color += hit.material.color * indirect_color * rr_factor;
         }
 
@@ -310,64 +278,73 @@ fn save_image_ppm(buffer: &[u32], width: usize, height: usize, filename: &str) {
 
 fn main() {
     let mut window = Window::new(
-        "Path Tracer",
+        "Path Tracer - Интерактив",
         WIDTH,
         HEIGHT,
         WindowOptions::default(),
     ).expect("Не удалось создать окно");
 
     let mut buffer: Vec<u32> = vec![0; WIDTH * HEIGHT];
+    let mut accum_buffer: Vec<Vec3> = vec![Vec3::ZERO; WIDTH * HEIGHT];
     
+    let mut frame_count = 0; // Счетчик накопленных кадров
+
     let aspect_ratio = WIDTH as f32 / HEIGHT as f32;
-    let camera = Camera::new(aspect_ratio);
+    // Создаем камеру в центре координат
+    let mut camera = Camera::new(aspect_ratio, Vec3::new(0.0, 0.0, 0.0));
     let scene = build_scene();
 
-    let samples_per_pixel = 128;
-    let gamma = 2.2f32;
-    let inv_gamma = 1.0 / gamma;
-
-    println!("рендер: {}x{}, Сэмплов на пиксель: {}", WIDTH, HEIGHT, samples_per_pixel);
-
-    buffer.par_chunks_mut(WIDTH).enumerate().for_each(|(y, row)| {
-        let mut rng = rand::thread_rng();
-        
-        for x in 0..WIDTH {
-            let mut pixel_color = Vec3::ZERO;
-
-            for _ in 0..samples_per_pixel {
-                let random_u: f32 = rng.gen_range(0.0..1.0);
-                let random_v: f32 = rng.gen_range(0.0..1.0);
-
-                let u = (x as f32 + random_u) / (WIDTH - 1) as f32;
-                let v = ((HEIGHT - 1 - y) as f32 + random_v) / (HEIGHT - 1) as f32;
-
-                let ray = camera.get_ray(u, v);
-                pixel_color += ray_color(&ray, &scene, 0);
-            }
-
-            pixel_color /= samples_per_pixel as f32;
-            
-            // 2. ТОНАЛЬНАЯ КОМПРЕССИЯ (Отсечение больше 1.0)
-            pixel_color.x = pixel_color.x.min(1.0);
-            pixel_color.y = pixel_color.y.min(1.0);
-            pixel_color.z = pixel_color.z.min(1.0);
-
-            // 3. ГАММА-КОРРЕКЦИЯ (V_corr = V^(1/gamma))
-            pixel_color.x = pixel_color.x.powf(inv_gamma);
-            pixel_color.y = pixel_color.y.powf(inv_gamma);
-            pixel_color.z = pixel_color.z.powf(inv_gamma);
-
-            row[x] = to_u32_color(pixel_color);
-        }
-    });
-
-    window.update_with_buffer(&buffer, WIDTH, HEIGHT).unwrap();
-
-    println!("\rРендер завершен!");
-
-    save_image_ppm(&buffer, WIDTH, HEIGHT, "render_result.ppm");
-
     while window.is_open() && !window.is_key_down(Key::Escape) {
+        let mut camera_moved = false;
+        let speed = 0.1;
+
+        if window.is_key_down(Key::W) { camera.move_by(Vec3::new(0.0, 0.0, -speed)); camera_moved = true; }
+        if window.is_key_down(Key::S) { camera.move_by(Vec3::new(0.0, 0.0, speed)); camera_moved = true; }
+        if window.is_key_down(Key::A) { camera.move_by(Vec3::new(-speed, 0.0, 0.0)); camera_moved = true; }
+        if window.is_key_down(Key::D) { camera.move_by(Vec3::new(speed, 0.0, 0.0)); camera_moved = true; }
+        if window.is_key_down(Key::Space) { camera.move_by(Vec3::new(0.0, speed, 0.0)); camera_moved = true; }
+        if window.is_key_down(Key::LeftShift) { camera.move_by(Vec3::new(0.0, -speed, 0.0)); camera_moved = true; }
+
+        if camera_moved {
+            frame_count = 0;
+            accum_buffer.fill(Vec3::ZERO);
+        }
+
+        frame_count += 1;
+
+        let inv_gamma = 1.0 / 2.2f32;
+
+        accum_buffer.par_chunks_mut(WIDTH)
+            .zip(buffer.par_chunks_mut(WIDTH))
+            .enumerate()
+            .for_each(|(y, (accum_row, buffer_row))| {
+                let mut rng = rand::thread_rng(); 
+
+                for x in 0..WIDTH {
+                    let random_u: f32 = rng.gen_range(0.0..1.0);
+                    let random_v: f32 = rng.gen_range(0.0..1.0);
+                    let u = (x as f32 + random_u) / (WIDTH - 1) as f32;
+                    let v = ((HEIGHT - 1 - y) as f32 + random_v) / (HEIGHT - 1) as f32;
+
+                    let ray = camera.get_ray(u, v);
+                    let color = ray_color(&ray, &scene, 0);
+
+                    // 1. Прибавляем новый свет к буферу накопления
+                    accum_row[x] += color;
+                    
+                    // 2. Усредняем свет по количеству кадров
+                    let mut final_color = accum_row[x] / (frame_count as f32);
+
+                    // Отсечение и Гамма-коррекция
+                    final_color.x = final_color.x.min(1.0).powf(inv_gamma);
+                    final_color.y = final_color.y.min(1.0).powf(inv_gamma);
+                    final_color.z = final_color.z.min(1.0).powf(inv_gamma);
+
+                    buffer_row[x] = to_u32_color(final_color);
+                }
+            });
+
         window.update_with_buffer(&buffer, WIDTH, HEIGHT).unwrap();
+        window.set_title(&format!("Path Tracer | WASD - Движение | Сэмплов накоплено: {}", frame_count));
     }
 }
