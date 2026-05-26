@@ -21,7 +21,7 @@ impl Ray {
     }
 }
 
-// create local coordinate system around normal
+/// create local coordinate system around normal
 pub fn create_coordinate_system(n: Vec3) -> (Vec3, Vec3, Vec3) {
     let nt = if n.x.abs() > n.y.abs() {
         Vec3::new(n.z, 0.0, -n.x) / (n.x * n.x + n.z * n.z).sqrt()
@@ -32,7 +32,7 @@ pub fn create_coordinate_system(n: Vec3) -> (Vec3, Vec3, Vec3) {
     (nt, nb, n)
 }
 
-// cosine distribution sampling 
+/// cosine distribution sampling 
 pub fn random_cosine_direction() -> Vec3 {
     let mut rng = rand::rng();
     let r1: f32 = rng.random_range(0.0..1.0);
