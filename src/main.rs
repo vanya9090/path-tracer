@@ -18,6 +18,7 @@ use rayon::prelude::*;
 
 const WIDTH: usize = 500;
 const HEIGHT: usize = 500;
+const SAMPLES: u32 = 128;
 
 fn add_quad(scene: &mut Scene, v0: Vec3, v1: Vec3, v2: Vec3, v3: Vec3, mat: Material) {
     scene.add(Triangle::new(v0, v1, v2, mat));
@@ -88,7 +89,6 @@ fn build_scene() -> Scene {
     
     let mirror = Material::specular();
     let yellow = Material::diffuse(Vec3::new(0.8, 0.7, 0.1));
-    let magenta = Material::diffuse(Vec3::new(0.7, 0.1, 0.7));
     let light_wall = Material::light(Vec3::new(1.0, 1.0, 1.0));
 
     add_quad(&mut scene, Vec3::new(-1.0, -1.0, 1.0), Vec3::new(-1.0, 1.0, 1.0), Vec3::new(-1.0, 1.0, -3.0), Vec3::new(-1.0, -1.0, -3.0), red); // Левая
@@ -224,7 +224,7 @@ fn ray_color(ray: &Ray, scene: &Scene, depth: u32) -> Vec3 {
         let rr_factor = if depth > 2 { 1.0 / survival_prob } else { 1.0 };
 
         // 3. Indirect Illumination
-        let prob: f32 = rng.gen_range(0.0..1.0);
+        let prob: f32 = rng.random_range(0.0..1.0);
 
         if prob < hit.material.kd {
             let (nt, nb, n) = math::create_coordinate_system(hit.normal);
@@ -278,73 +278,54 @@ fn save_image_ppm(buffer: &[u32], width: usize, height: usize, filename: &str) {
 
 fn main() {
     let mut window = Window::new(
-        "Path Tracer - Интерактив",
+        "Path Tracer",
         WIDTH,
         HEIGHT,
         WindowOptions::default(),
     ).expect("Не удалось создать окно");
 
     let mut buffer: Vec<u32> = vec![0; WIDTH * HEIGHT];
-    let mut accum_buffer: Vec<Vec3> = vec![Vec3::ZERO; WIDTH * HEIGHT];
-    
-    let mut frame_count = 0; // Счетчик накопленных кадров
 
     let aspect_ratio = WIDTH as f32 / HEIGHT as f32;
-    // Создаем камеру в центре координат
-    let mut camera = Camera::new(aspect_ratio, Vec3::new(0.0, 0.0, 0.0));
+    let camera = Camera::new(aspect_ratio, Vec3::new(0.0, 0.0, 0.0));
     let scene = build_scene();
 
-    while window.is_open() && !window.is_key_down(Key::Escape) {
-        let mut camera_moved = false;
-        let speed = 0.1;
+    println!("start, samples per pixel: {}", SAMPLES);
 
-        if window.is_key_down(Key::W) { camera.move_by(Vec3::new(0.0, 0.0, -speed)); camera_moved = true; }
-        if window.is_key_down(Key::S) { camera.move_by(Vec3::new(0.0, 0.0, speed)); camera_moved = true; }
-        if window.is_key_down(Key::A) { camera.move_by(Vec3::new(-speed, 0.0, 0.0)); camera_moved = true; }
-        if window.is_key_down(Key::D) { camera.move_by(Vec3::new(speed, 0.0, 0.0)); camera_moved = true; }
-        if window.is_key_down(Key::Space) { camera.move_by(Vec3::new(0.0, speed, 0.0)); camera_moved = true; }
-        if window.is_key_down(Key::LeftShift) { camera.move_by(Vec3::new(0.0, -speed, 0.0)); camera_moved = true; }
+    let inv_gamma = 1.0 / 2.2f32;
 
-        if camera_moved {
-            frame_count = 0;
-            accum_buffer.fill(Vec3::ZERO);
-        }
+    buffer.par_chunks_mut(WIDTH)
+        .enumerate()
+        .for_each(|(y, buffer_row)| {
+            let mut rng = rand::rng(); 
 
-        frame_count += 1;
+            for x in 0..WIDTH {
+                let mut accum_color = Vec3::ZERO;
 
-        let inv_gamma = 1.0 / 2.2f32;
-
-        accum_buffer.par_chunks_mut(WIDTH)
-            .zip(buffer.par_chunks_mut(WIDTH))
-            .enumerate()
-            .for_each(|(y, (accum_row, buffer_row))| {
-                let mut rng = rand::thread_rng(); 
-
-                for x in 0..WIDTH {
-                    let random_u: f32 = rng.gen_range(0.0..1.0);
-                    let random_v: f32 = rng.gen_range(0.0..1.0);
+                for _ in 0..SAMPLES{
+                    let random_u: f32 = rng.random_range(0.0..1.0);
+                    let random_v: f32 = rng.random_range(0.0..1.0);
                     let u = (x as f32 + random_u) / (WIDTH - 1) as f32;
                     let v = ((HEIGHT - 1 - y) as f32 + random_v) / (HEIGHT - 1) as f32;
 
                     let ray = camera.get_ray(u, v);
-                    let color = ray_color(&ray, &scene, 0);
-
-                    // 1. Прибавляем новый свет к буферу накопления
-                    accum_row[x] += color;
                     
-                    // 2. Усредняем свет по количеству кадров
-                    let mut final_color = accum_row[x] / (frame_count as f32);
-
-                    // Отсечение и Гамма-коррекция
-                    final_color.x = final_color.x.min(1.0).powf(inv_gamma);
-                    final_color.y = final_color.y.min(1.0).powf(inv_gamma);
-                    final_color.z = final_color.z.min(1.0).powf(inv_gamma);
-
-                    buffer_row[x] = to_u32_color(final_color);
+                    accum_color += ray_color(&ray, &scene, 0);
                 }
-            });
+                
+                let mut final_color = accum_color / (SAMPLES as f32);
 
+                // Отсечение и Гамма-коррекция
+                final_color.x = final_color.x.min(1.0).powf(inv_gamma);
+                final_color.y = final_color.y.min(1.0).powf(inv_gamma);
+                final_color.z = final_color.z.min(1.0).powf(inv_gamma);
+
+                buffer_row[x] = to_u32_color(final_color);
+            }
+        });
+
+
+    while window.is_open() && !window.is_key_down(Key::Escape) {
         window.update_with_buffer(&buffer, WIDTH, HEIGHT).unwrap();
-        window.set_title(&format!("Path Tracer | WASD - Движение | Сэмплов накоплено: {}", frame_count));
     }
 }
