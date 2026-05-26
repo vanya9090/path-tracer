@@ -6,7 +6,6 @@ mod scene;
 mod obj;
 
 use glam::Vec3;
-use minifb::{Key, Window, WindowOptions};
 use math::Ray;
 use camera::Camera;
 use scene::Scene;
@@ -172,13 +171,6 @@ fn save_image_ppm(buffer: &[u32], width: usize, height: usize, filename: &str) {
 }
 
 fn main() {
-    let mut window = Window::new(
-        "Path Tracer",
-        WIDTH,
-        HEIGHT,
-        WindowOptions::default(),
-    ).expect("can't create new window");
-
     let mut buffer: Vec<u32> = vec![0; WIDTH * HEIGHT];
 
     let aspect_ratio = WIDTH as f32 / HEIGHT as f32;
@@ -220,9 +212,5 @@ fn main() {
                 buffer_row[x] = to_u32_color(final_color);
             }
         });
-
-
-    while window.is_open() && !window.is_key_down(Key::Escape) {
-        window.update_with_buffer(&buffer, WIDTH, HEIGHT).unwrap();
-    }
+    save_image_ppm(&buffer, WIDTH, HEIGHT, "image.ppm")
 }
