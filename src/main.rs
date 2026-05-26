@@ -9,7 +9,6 @@ use glam::Vec3;
 use minifb::{Key, Window, WindowOptions};
 use math::Ray;
 use camera::Camera;
-use geometry::Triangle;
 use scene::Scene;
 use rand::Rng;
 use std::fs::File;
@@ -21,6 +20,8 @@ use obj::build_scene;
 const WIDTH: usize = 500;
 const HEIGHT: usize = 500;
 const SAMPLES: u32 = 10;
+
+
 
 
 fn ray_color(ray: &Ray, scene: &Scene, depth: u32) -> Vec3 {
@@ -74,7 +75,7 @@ fn ray_color(ray: &Ray, scene: &Scene, depth: u32) -> Vec3 {
             }
         }
 
-        let light_tri = &scene.triangles[selected_idx];
+        let light_tri = &scene.triangles[scene.lights_ids[selected_idx]];
         let light_prob = weights[selected_idx] / total_weight;
 
 
