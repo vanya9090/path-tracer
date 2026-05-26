@@ -4,25 +4,30 @@ mod geometry;
 mod material;
 mod scene;
 mod obj;
+mod postprocessing;
 
 use glam::Vec3;
 use math::Ray;
 use camera::Camera;
 use scene::Scene;
 use rand::Rng;
-use std::fs::File;
+use std::{f32::INFINITY, fs::File};
 use std::io::Write;
 use rayon::prelude::*;
 use obj::build_scene;
 
-use geometry::Triangle;
-use geometry::HitRecord;
+use geometry::{Triangle, HitRecord};
+use postprocessing::{PostProcessingPipeline,
+    Clipping,
+    GammaCorrection,
+    FrameData};
 
 
 const WIDTH: usize = 500;
 const HEIGHT: usize = 500;
 const SAMPLES: u32 = 128;
 const EPS: f32 = 0.001;
+const MAX_DEPTH: u32 = 50;
 const FILENAME: &str = "image.ppm";
 
 
@@ -100,7 +105,7 @@ fn sample_next_ray(ray: &Ray, hit: &HitRecord) -> Option<Ray> {
     let mut rng = rand::rng();
     let prob: f32 = rng.random_range(0.0..1.0);
 
-    let origin = hit.point + hit.normal * 0.001;
+    let origin = hit.point + hit.normal * EPS;
 
     if prob < hit.material.kd {
         let (nt, nb, n) = math::create_coordinate_system(hit.normal);
@@ -121,7 +126,7 @@ fn sample_next_ray(ray: &Ray, hit: &HitRecord) -> Option<Ray> {
 
 
 fn ray_color(ray: &Ray, scene: &Scene, depth: u32) -> Vec3 {
-    if depth >= 50 {
+    if depth >= MAX_DEPTH {
         return Vec3::ZERO;
     }
 
@@ -168,25 +173,28 @@ fn save_image_ppm(buffer: &[u32], width: usize, height: usize, filename: &str) {
 }
 
 fn main() {
-    let mut buffer: Vec<u32> = vec![0; WIDTH * HEIGHT];
+    let mut color_buffer: Vec<Vec3> = vec![Vec3::ZERO; WIDTH * HEIGHT];
+    let mut depth_buffer: Vec<f32> = vec![INFINITY; WIDTH * HEIGHT];
 
     let aspect_ratio = WIDTH as f32 / HEIGHT as f32;
     let camera = Camera::new(aspect_ratio, Vec3::new(0.0, 0.0, 0.0));
     let scene = build_scene();
+    let pipeline = PostProcessingPipeline::new()
+        .add_step(Clipping)
+        .add_step(GammaCorrection {gamma: 2.2});
 
     println!("start, samples per pixel: {}", SAMPLES);
 
-    let inv_gamma = 1.0 / 2.2f32;
-
-    buffer.par_chunks_mut(WIDTH)
+    color_buffer.par_chunks_mut(WIDTH)
+        .zip(depth_buffer.par_chunks_mut(WIDTH))
         .enumerate()
-        .for_each(|(y, buffer_row)| {
+        .for_each(|(y, (color_row, depth_row))| {
             let mut rng = rand::rng(); 
 
             for x in 0..WIDTH {
                 let mut accum_color = Vec3::ZERO;
 
-                for _ in 0..SAMPLES{
+                for s in 0..SAMPLES{
                     let random_u: f32 = rng.random_range(0.0..1.0);
                     let random_v: f32 = rng.random_range(0.0..1.0);
                     let u = (x as f32 + random_u) / (WIDTH - 1) as f32;
@@ -197,17 +205,33 @@ fn main() {
                     if !scene.lights_ids.is_empty() {
                         accum_color += ray_color(&ray, &scene, 0);
                     }
+
+                    if s == 0 {
+                        if let Some(hit) = scene.intersect(&ray) {
+                            depth_row[x] = hit.t;
+                        }
+                    }
                 }
                 
-                let mut final_color = accum_color / (SAMPLES as f32);
-
-                // gamma and clipping 
-                final_color.x = final_color.x.min(1.0).powf(inv_gamma);
-                final_color.y = final_color.y.min(1.0).powf(inv_gamma);
-                final_color.z = final_color.z.min(1.0).powf(inv_gamma);
-
-                buffer_row[x] = to_u32_color(final_color);
+                color_row[x] = accum_color / (SAMPLES as f32);
             }
         });
-    save_image_ppm(&buffer, WIDTH, HEIGHT, FILENAME)
+
+    let mut frame = FrameData {width: WIDTH,
+        height: HEIGHT,
+        colors: color_buffer,
+        depths: depth_buffer};
+
+    pipeline.execute(&mut frame);
+
+    let mut display_buffer: Vec<u32> = vec![0; WIDTH * HEIGHT];
+    
+    display_buffer.par_iter_mut()
+        .zip(frame.colors.par_iter())
+        .for_each(|(pixel, color)| {
+            *pixel = to_u32_color(*color);
+        });
+
+
+    save_image_ppm(&display_buffer, WIDTH, HEIGHT, FILENAME)
 }
