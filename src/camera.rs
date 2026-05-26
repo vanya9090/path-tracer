@@ -33,11 +33,6 @@ impl Camera {
         self.lower_left_corner = self.origin - self.horizontal / 2.0 - self.vertical / 2.0 - Vec3::new(0.0, 0.0, focal_length);
     }
 
-    pub fn move_by(&mut self, delta: Vec3) {
-        self.origin += delta;
-        self.update_geometry();
-    }
-
     pub fn get_ray(&self, u: f32, v: f32) -> Ray {
         Ray::new(
             self.origin,

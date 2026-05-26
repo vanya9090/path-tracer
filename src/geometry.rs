@@ -22,7 +22,7 @@ impl Triangle {
         Self { v0, v1, v2, material}
     }
 
-    // Алгоритм Мёллера — Трумбора
+    // Moller-Trumbore intersection algorithm
     pub fn intersect(&self, ray: &Ray) -> Option<HitRecord> {
         let epsilon = 1e-6;
 
@@ -32,7 +32,6 @@ impl Triangle {
         let h = ray.direction.cross(e2);
         let a = e1.dot(h);
 
-        // Если a близко к 0, луч параллелен плоскости треугольника
         if a > -epsilon && a < epsilon {
             return None;
         }
@@ -41,7 +40,6 @@ impl Triangle {
         let s = ray.origin - self.v0;
         let u = f * s.dot(h);
 
-        // Проверяем, находится ли пересечение за пределами треугольника
         if u < 0.0 || u > 1.0 {
             return None;
         }
@@ -53,17 +51,11 @@ impl Triangle {
             return None;
         }
 
-        // Вычисляем t - расстояние до точки пересечения
         let t = f * e2.dot(q);
 
         if t > epsilon {
-            // Нашли корректное пересечение!
             let point = ray.at(t);
-            
-            // Вычисляем геометрическую нормаль треугольника
             let mut normal = e1.cross(e2).normalize();
-            
-            // Гарантируем, что нормаль смотрит навстречу лучу
             if ray.direction.dot(normal) > 0.0 {
                 normal = -normal;
             }
@@ -71,7 +63,7 @@ impl Triangle {
             return Some(HitRecord { t, point, normal, material: self.material });
         }
 
-        None // Пересечение находится позади камеры (t < 0)
+        None
     }
 
     pub fn area(&self) -> f32 {
@@ -80,12 +72,12 @@ impl Triangle {
         e1.cross(e2).length() * 0.5
     }
 
-    // Равномерный выбор случайной точки на поверхности треугольника
+    // uniform sampling on triangle
     pub fn sample_point(&self) -> Vec3 {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         
-        let mut r1: f32 = rng.gen_range(0.0..1.0);
-        let mut r2: f32 = rng.gen_range(0.0..1.0);
+        let mut r1: f32 = rng.random_range(0.0..1.0);
+        let mut r2: f32 = rng.random_range(0.0..1.0);
 
         if r1 + r2 > 1.0 {
             r1 = 1.0 - r1;

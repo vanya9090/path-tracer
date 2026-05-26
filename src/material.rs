@@ -2,10 +2,10 @@ use glam::Vec3;
 
 #[derive(Clone, Copy)]
 pub struct Material {
-    pub color: Vec3,    // Цвет для диффузных поверхностей
-    pub emission: Vec3, // Свечение (для источников света)
-    pub kd: f32,        // Вероятность диффузного отражения (0.0 - 1.0)
-    pub ks: f32,        // Вероятность зеркального отражения (0.0 - 1.0)
+    pub color: Vec3,
+    pub emission: Vec3,
+    pub kd: f32,
+    pub ks: f32,
 }
 
 impl Material {

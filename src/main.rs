@@ -91,12 +91,12 @@ fn build_scene() -> Scene {
     let yellow = Material::diffuse(Vec3::new(0.8, 0.7, 0.1));
     let light_wall = Material::light(Vec3::new(1.0, 1.0, 1.0));
 
-    add_quad(&mut scene, Vec3::new(-1.0, -1.0, 1.0), Vec3::new(-1.0, 1.0, 1.0), Vec3::new(-1.0, 1.0, -3.0), Vec3::new(-1.0, -1.0, -3.0), red); // Левая
-    add_quad(&mut scene, Vec3::new(1.0, -1.0, -3.0), Vec3::new(1.0, 1.0, -3.0), Vec3::new(1.0, 1.0, 1.0), Vec3::new(1.0, -1.0, 1.0), green); // Правая
-    add_quad(&mut scene, Vec3::new(-1.0, -1.0, 1.0), Vec3::new(-1.0, -1.0, -3.0), Vec3::new(1.0, -1.0, -3.0), Vec3::new(1.0, -1.0, 1.0), white); // Пол
-    add_quad(&mut scene, Vec3::new(-1.0, 1.0, 1.0), Vec3::new(1.0, 1.0, 1.0), Vec3::new(1.0, 1.0, -3.0), Vec3::new(-1.0, 1.0, -3.0), white); // Потолок
-    add_quad(&mut scene, Vec3::new(-1.0, -1.0, -3.0), Vec3::new(-1.0, 1.0, -3.0), Vec3::new(1.0, 1.0, -3.0), Vec3::new(1.0, -1.0, -3.0), white); // Задняя
-    add_quad(&mut scene, Vec3::new(1.0, -1.0, 1.0), Vec3::new(1.0, 1.0, 1.0), Vec3::new(-1.0, 1.0, 1.0), Vec3::new(-1.0, -1.0, 1.0), mirror); // Передняя
+    add_quad(&mut scene, Vec3::new(-1.0, -1.0, 1.0), Vec3::new(-1.0, 1.0, 1.0), Vec3::new(-1.0, 1.0, -3.0), Vec3::new(-1.0, -1.0, -3.0), red);
+    add_quad(&mut scene, Vec3::new(1.0, -1.0, -3.0), Vec3::new(1.0, 1.0, -3.0), Vec3::new(1.0, 1.0, 1.0), Vec3::new(1.0, -1.0, 1.0), green);
+    add_quad(&mut scene, Vec3::new(-1.0, -1.0, 1.0), Vec3::new(-1.0, -1.0, -3.0), Vec3::new(1.0, -1.0, -3.0), Vec3::new(1.0, -1.0, 1.0), white);
+    add_quad(&mut scene, Vec3::new(-1.0, 1.0, 1.0), Vec3::new(1.0, 1.0, 1.0), Vec3::new(1.0, 1.0, -3.0), Vec3::new(-1.0, 1.0, -3.0), white);
+    add_quad(&mut scene, Vec3::new(-1.0, -1.0, -3.0), Vec3::new(-1.0, 1.0, -3.0), Vec3::new(1.0, 1.0, -3.0), Vec3::new(1.0, -1.0, -3.0), white);
+    add_quad(&mut scene, Vec3::new(1.0, -1.0, 1.0), Vec3::new(1.0, 1.0, 1.0), Vec3::new(-1.0, 1.0, 1.0), Vec3::new(-1.0, -1.0, 1.0), mirror);
 
     add_box(&mut scene, Vec3::new(0.2, -1.0, -2.5), Vec3::new(0.7, 0.2, -1.9), mirror);
 
@@ -129,25 +129,23 @@ fn ray_color(ray: &Ray, scene: &Scene, depth: u32) -> Vec3 {
 
         let mut final_color = Vec3::ZERO;
 
-        // 1. Direct Illumination
+        // direct lights  
         let lights: Vec<&Triangle> = scene.triangles.iter()
             .filter(|t| t.material.emission.length_squared() > 0.0)
             .collect();
 
         if !lights.is_empty() {
-            // ШАГ 1: Вычисляем вероятность каждого треугольника-источника.
-            // вероятность = intensity * площадь треугольника * cos theta / r^2
+            // compute probabilty of every triangle light
+            // proba = intensity * area * cos theta / r^2
             let mut total_weight = 0.0;
             let mut weights = Vec::with_capacity(lights.len());
 
             for light in &lights {
-                // Центр и расстояние
                 let light_center = (light.v0 + light.v1 + light.v2) / 3.0;
                 let dir_to_light = light_center - hit.point;
                 let dist_sq = dir_to_light.length_squared().max(0.01);
                 let dir_to_light_norm = dir_to_light.normalize();
 
-                // Нормаль источника света
                 let e1 = light.v1 - light.v0;
                 let e2 = light.v2 - light.v0;
                 let light_normal = e1.cross(e2).normalize();
@@ -177,7 +175,7 @@ fn ray_color(ray: &Ray, scene: &Scene, depth: u32) -> Vec3 {
             let light_tri = lights[selected_idx];
             let light_prob = weights[selected_idx] / total_weight;
 
-            // ШАГ 2: Расчет освещения от выбранного источника
+
             let light_point = light_tri.sample_point();
             let dir_to_light = light_point - hit.point;
             let distance_to_light = dir_to_light.length();
@@ -199,7 +197,6 @@ fn ray_color(ray: &Ray, scene: &Scene, depth: u32) -> Vec3 {
                         let geometry_term = (cos_theta * cos_theta_prime) / (distance_to_light * distance_to_light);
                         let brdf = hit.material.color / std::f32::consts::PI;
 
-                        // Вклад = (BRDF * Emission * Геометрия * Площадь_лампы) / Вероятность_выбора_лампы
                         final_color += (brdf * light_tri.material.emission * geometry_term * light_tri.area()) / light_prob;
                     }
                 }
@@ -223,7 +220,7 @@ fn ray_color(ray: &Ray, scene: &Scene, depth: u32) -> Vec3 {
 
         let rr_factor = if depth > 2 { 1.0 / survival_prob } else { 1.0 };
 
-        // 3. Indirect Illumination
+
         let prob: f32 = rng.random_range(0.0..1.0);
 
         if prob < hit.material.kd {
@@ -246,10 +243,6 @@ fn ray_color(ray: &Ray, scene: &Scene, depth: u32) -> Vec3 {
             final_color += hit.material.color * indirect_color * rr_factor;
         }
 
-        // final_color.x = final_color.x.min(3.0);
-        // final_color.y = final_color.y.min(3.0);
-        // final_color.z = final_color.z.min(3.0);
-
         return final_color;
     }
 
@@ -264,7 +257,7 @@ fn to_u32_color(color: Vec3) -> u32 {
 }
 
 fn save_image_ppm(buffer: &[u32], width: usize, height: usize, filename: &str) {
-    let mut file = File::create(filename).expect("Не удалось создать файл");
+    let mut file = File::create(filename).expect("can't create file");
     write!(file, "P3\n{} {}\n255\n", width, height).unwrap();
     
     for &pixel in buffer {
@@ -273,7 +266,7 @@ fn save_image_ppm(buffer: &[u32], width: usize, height: usize, filename: &str) {
         let b = pixel & 255;
         writeln!(file, "{} {} {}", r, g, b).unwrap();
     }
-    println!("Изображение успешно сохранено в {}", filename);
+    println!("saved in {}", filename);
 }
 
 fn main() {
@@ -282,7 +275,7 @@ fn main() {
         WIDTH,
         HEIGHT,
         WindowOptions::default(),
-    ).expect("Не удалось создать окно");
+    ).expect("can't create new window");
 
     let mut buffer: Vec<u32> = vec![0; WIDTH * HEIGHT];
 
@@ -315,7 +308,7 @@ fn main() {
                 
                 let mut final_color = accum_color / (SAMPLES as f32);
 
-                // Отсечение и Гамма-коррекция
+                // gamma and clipping 
                 final_color.x = final_color.x.min(1.0).powf(inv_gamma);
                 final_color.y = final_color.y.min(1.0).powf(inv_gamma);
                 final_color.z = final_color.z.min(1.0).powf(inv_gamma);
