@@ -35,76 +35,71 @@ fn ray_color(ray: &Ray, scene: &Scene, depth: u32) -> Vec3 {
 
         let mut final_color = Vec3::ZERO;
 
-        // direct lights  
-        let lights: Vec<&Triangle> = scene.triangles.iter()
-            .filter(|t| t.material.emission.length_squared() > 0.0)
-            .collect();
+        // compute probabilty of every triangle light
+        // proba = intensity * area * cos theta / r^2
+        let mut total_weight = 0.0;
+        let mut weights = Vec::with_capacity(scene.lights_ids.len());
 
-        if !lights.is_empty() {
-            // compute probabilty of every triangle light
-            // proba = intensity * area * cos theta / r^2
-            let mut total_weight = 0.0;
-            let mut weights = Vec::with_capacity(lights.len());
+        for &light_id in &scene.lights_ids{
+            let light = &scene.triangles[light_id];
 
-            for light in &lights {
-                let light_center = (light.v0 + light.v1 + light.v2) / 3.0;
-                let dir_to_light = light_center - hit.point;
-                let dist_sq = dir_to_light.length_squared().max(0.01);
-                let dir_to_light_norm = dir_to_light.normalize();
+            let light_center = (light.v0 + light.v1 + light.v2) / 3.0;
+            let dir_to_light = light_center - hit.point;
+            let dist_sq = dir_to_light.length_squared().max(0.01);
+            let dir_to_light_norm = dir_to_light.normalize();
 
-                let e1 = light.v1 - light.v0;
-                let e2 = light.v2 - light.v0;
-                let light_normal = e1.cross(e2).normalize();
+            let e1 = light.v1 - light.v0;
+            let e2 = light.v2 - light.v0;
+            let light_normal = e1.cross(e2).normalize();
 
-                let cos_theta_y = light_normal.dot(-dir_to_light_norm).max(0.0);
-                let base_power = light.material.emission.length() * light.area();
-                let weight = (base_power * cos_theta_y) / dist_sq;
-                
-                weights.push(weight);
-                total_weight += weight;
-            }
-
-            let mut rng = rand::rng(); 
-            let random_val: f32 = rng.random_range(0.0..total_weight);
+            let cos_theta_y = light_normal.dot(-dir_to_light_norm).max(0.0);
+            let base_power = light.material.emission.length() * light.area();
+            let weight = (base_power * cos_theta_y) / dist_sq;
             
-            let mut current_sum = 0.0;
-            let mut selected_idx = lights.len() - 1; 
+            weights.push(weight);
+            total_weight += weight;
+        }
 
-            for (i, &weight) in weights.iter().enumerate() {
-                current_sum += weight;
-                if random_val < current_sum {
-                    selected_idx = i;
-                    break;
-                }
+        let mut rng = rand::rng(); 
+        let random_val: f32 = rng.random_range(0.0..total_weight);
+        
+        let mut current_sum = 0.0;
+        let mut selected_idx = scene.lights_ids.len() - 1; 
+
+        for (i, &weight) in weights.iter().enumerate() {
+            current_sum += weight;
+            if random_val < current_sum {
+                selected_idx = i;
+                break;
             }
+        }
 
-            let light_tri = lights[selected_idx];
-            let light_prob = weights[selected_idx] / total_weight;
+        let light_tri = &scene.triangles[selected_idx];
+        let light_prob = weights[selected_idx] / total_weight;
 
 
-            let light_point = light_tri.sample_point();
-            let dir_to_light = light_point - hit.point;
-            let distance_to_light = dir_to_light.length();
-            let dir_to_light_norm = dir_to_light / distance_to_light;
+        let light_point = light_tri.sample_point();
+        let dir_to_light = light_point - hit.point;
+        let distance_to_light = dir_to_light.length();
+        let dir_to_light_norm = dir_to_light / distance_to_light;
 
-            let shadow_ray = Ray::new(hit.point + hit.normal * 0.001, dir_to_light_norm);
+        let shadow_ray = Ray::new(hit.point + hit.normal * 0.001, dir_to_light_norm);
 
-            if let Some(shadow_hit) = scene.intersect(&shadow_ray) {
-                if shadow_hit.t >= distance_to_light - 0.01 {
-                    let cos_theta = hit.normal.dot(dir_to_light_norm).max(0.0);
-                    
-                    let e1 = light_tri.v1 - light_tri.v0;
-                    let e2 = light_tri.v2 - light_tri.v0;
-                    let light_normal = e1.cross(e2).normalize(); 
-                    
-                    let cos_theta_prime = light_normal.dot(-dir_to_light_norm).max(0.0);
+        if let Some(shadow_hit) = scene.intersect(&shadow_ray) {
+            if shadow_hit.t >= distance_to_light - 0.01 {
+                let cos_theta = hit.normal.dot(dir_to_light_norm).max(0.0);
+                
+                let e1 = light_tri.v1 - light_tri.v0;
+                let e2 = light_tri.v2 - light_tri.v0;
+                let light_normal = e1.cross(e2).normalize(); 
+                
+                let cos_theta_prime = light_normal.dot(-dir_to_light_norm).max(0.0);
 
-                    if cos_theta_prime > 0.0 {
-                        let geometry_term = (cos_theta * cos_theta_prime) / (distance_to_light * distance_to_light);
-                        let brdf = hit.material.color / std::f32::consts::PI;
+                if cos_theta_prime > 0.0 {
+                    let geometry_term = (cos_theta * cos_theta_prime) / (distance_to_light * distance_to_light);
+                    let brdf = hit.material.color / std::f32::consts::PI;
 
-                        final_color += (brdf * light_tri.material.emission * geometry_term * light_tri.area()) / light_prob;
-                    }
+                    final_color += (brdf * light_tri.material.emission * geometry_term * light_tri.area()) / light_prob;
                 }
             }
         }
@@ -209,7 +204,9 @@ fn main() {
 
                     let ray = camera.get_ray(u, v);
                     
-                    accum_color += ray_color(&ray, &scene, 0);
+                    if !scene.lights_ids.is_empty() {
+                        accum_color += ray_color(&ray, &scene, 0);
+                    }
                 }
                 
                 let mut final_color = accum_color / (SAMPLES as f32);
