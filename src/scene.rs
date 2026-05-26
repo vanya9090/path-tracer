@@ -14,7 +14,6 @@ impl Scene {
         self.triangles.push(triangle);
     }
 
-    // Ищем ближайшее пересечение луча со всеми объектами сцены
     pub fn intersect(&self, ray: &Ray) -> Option<HitRecord> {
         let mut closest_hit: Option<HitRecord> = None;
         let mut closest_t = f32::MAX;
