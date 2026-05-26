@@ -15,12 +15,33 @@ use std::io::Write;
 use rayon::prelude::*;
 use obj::build_scene;
 
+use geometry::Triangle;
+
 
 const WIDTH: usize = 500;
 const HEIGHT: usize = 500;
-const SAMPLES: u32 = 10;
+const SAMPLES: u32 = 128;
 
 
+fn select_light(scene: &Scene) -> (f32, &Triangle){
+    let mut rng = rand::rng(); 
+    let random_val: f32 = rng.random_range(0.0..scene.total_light_weight);
+    
+    let selected_idx = scene.lights_cdf.partition_point(|&cdf| cdf < random_val);
+    let selected_idx = selected_idx.min(scene.lights_ids.len() - 1);
+    
+    let actual_triangle_id = scene.lights_ids[selected_idx];
+    let light_tri = &scene.triangles[actual_triangle_id];
+    
+    let weight = if selected_idx == 0 {
+        scene.lights_cdf[0]
+    } else {
+        scene.lights_cdf[selected_idx] - scene.lights_cdf[selected_idx - 1]
+    };
+    let light_prob = weight / scene.total_light_weight;
+
+    (light_prob, light_tri)
+}
 
 
 fn ray_color(ray: &Ray, scene: &Scene, depth: u32) -> Vec3 {
@@ -35,48 +56,7 @@ fn ray_color(ray: &Ray, scene: &Scene, depth: u32) -> Vec3 {
 
         let mut final_color = Vec3::ZERO;
 
-        // compute probabilty of every triangle light
-        // proba = intensity * area * cos theta / r^2
-        let mut total_weight = 0.0;
-        let mut weights = Vec::with_capacity(scene.lights_ids.len());
-
-        for &light_id in &scene.lights_ids{
-            let light = &scene.triangles[light_id];
-
-            let light_center = (light.v0 + light.v1 + light.v2) / 3.0;
-            let dir_to_light = light_center - hit.point;
-            let dist_sq = dir_to_light.length_squared().max(0.01);
-            let dir_to_light_norm = dir_to_light.normalize();
-
-            let e1 = light.v1 - light.v0;
-            let e2 = light.v2 - light.v0;
-            let light_normal = e1.cross(e2).normalize();
-
-            let cos_theta_y = light_normal.dot(-dir_to_light_norm).max(0.0);
-            let base_power = light.material.emission.length() * light.area();
-            let weight = (base_power * cos_theta_y) / dist_sq;
-            
-            weights.push(weight);
-            total_weight += weight;
-        }
-
-        let mut rng = rand::rng(); 
-        let random_val: f32 = rng.random_range(0.0..total_weight);
-        
-        let mut current_sum = 0.0;
-        let mut selected_idx = scene.lights_ids.len() - 1; 
-
-        for (i, &weight) in weights.iter().enumerate() {
-            current_sum += weight;
-            if random_val < current_sum {
-                selected_idx = i;
-                break;
-            }
-        }
-
-        let light_tri = &scene.triangles[scene.lights_ids[selected_idx]];
-        let light_prob = weights[selected_idx] / total_weight;
-
+        let (light_prob, light_tri) = select_light(scene);
 
         let light_point = light_tri.sample_point();
         let dir_to_light = light_point - hit.point;
@@ -212,5 +192,5 @@ fn main() {
                 buffer_row[x] = to_u32_color(final_color);
             }
         });
-    save_image_ppm(&buffer, WIDTH, HEIGHT, "image.ppm")
+    save_image_ppm(&buffer, WIDTH, HEIGHT, "image1.ppm")
 }

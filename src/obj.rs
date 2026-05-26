@@ -98,5 +98,7 @@ pub fn build_scene() -> Scene {
     let light_floating = Material::light(Vec3::new(1.0, 6.0, 30.0));
     add_sphere(&mut scene, Vec3::new(0.3, -0.1, -1.0), 0.15, light_floating);
 
+    scene.update_lights();
+
     scene
 }
