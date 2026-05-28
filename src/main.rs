@@ -23,11 +23,12 @@ use postprocessing::{
     Clipping,
     GammaCorrection,
     FrameData};
+use crate::postprocessing::PostProcessStep;
 
 
-const WIDTH: usize = 1000;
-const HEIGHT: usize = 1000;
-const SAMPLES: u32 = 256;
+const WIDTH: usize = 500;
+const HEIGHT: usize = 500;
+const SAMPLES: u32 = 128;
 const EPS: f32 = 0.001;
 const MAX_DEPTH: u32 = 50;
 const FILENAME: &str = "image.ppm";
@@ -154,6 +155,14 @@ fn ray_color(ray: &Ray, scene: &Scene, depth: u32) -> Vec3 {
     Vec3::ZERO
 }
 
+fn calculate_total_energy(colors: &[Vec3]) -> f64 {
+    let mut total_energy = 0.0f64;
+    for color in colors {
+        total_energy += (color.x + color.y + color.z) as f64;
+    }
+    total_energy
+}
+
 fn to_u32_color(color: Vec3) -> u32 {
     let r = (color.x.clamp(0.0, 1.0) * 255.0) as u32;
     let g = (color.y.clamp(0.0, 1.0) * 255.0) as u32;
@@ -181,11 +190,11 @@ fn main() {
     let aspect_ratio = WIDTH as f32 / HEIGHT as f32;
     let camera = Camera::new(aspect_ratio, Vec3::new(0.0, 0.0, 0.0));
     let scene = build_scene();
-    let pipeline = PostProcessingPipeline::new()
-        // .add_step(BilateralFilterStep {sigma_spatial: 1.0, sigma_depth: 0.2})
-        .add_step(Clipping)
-        .add_step(GammaCorrection {gamma: 2.2}
-        );
+    // let pipeline = PostProcessingPipeline::new()
+    //     .add_step(BilateralFilterStep {sigma_spatial: 1.0, sigma_depth: 0.2})
+    //     .add_step(Clipping)
+    //     .add_step(GammaCorrection {gamma: 2.2}
+    // );
 
     println!("start, samples per pixel: {}", SAMPLES);
 
@@ -226,7 +235,28 @@ fn main() {
         colors: color_buffer,
         depths: depth_buffer};
 
-    pipeline.execute(&mut frame);
+    let energy_before = calculate_total_energy(&frame.colors);
+
+    let bilateral_filter = BilateralFilterStep { sigma_spatial: 2.0, sigma_depth: 0.1 };
+    bilateral_filter.apply(&mut frame);
+
+    let energy_after = calculate_total_energy(&frame.colors);
+    
+    let difference = (energy_before - energy_after).abs();
+    let difference_percent = (difference / energy_before) * 100.0;
+
+    println!("Энергия ДО фильтра: {:.4}", energy_before);
+    println!("Энергия ПОСЛЕ фильтра: {:.4}", energy_after);
+    println!("Абсолютная разница: {:.4}", difference);
+    println!("Погрешность: {:.4}%", difference_percent);
+
+    let rest_of_pipeline = PostProcessingPipeline::new()
+        .add_step(Clipping)
+        .add_step(GammaCorrection { gamma: 2.2 });
+
+    rest_of_pipeline.execute(&mut frame);
+
+    // pipeline.execute(&mut frame);
 
     let mut display_buffer: Vec<u32> = vec![0; WIDTH * HEIGHT];
     
