@@ -17,15 +17,17 @@ use rayon::prelude::*;
 use obj::build_scene;
 
 use geometry::{Triangle, HitRecord};
-use postprocessing::{PostProcessingPipeline,
+use postprocessing::{
+    BilateralFilterStep,
+    PostProcessingPipeline,
     Clipping,
     GammaCorrection,
     FrameData};
 
 
-const WIDTH: usize = 500;
-const HEIGHT: usize = 500;
-const SAMPLES: u32 = 128;
+const WIDTH: usize = 1000;
+const HEIGHT: usize = 1000;
+const SAMPLES: u32 = 256;
 const EPS: f32 = 0.001;
 const MAX_DEPTH: u32 = 50;
 const FILENAME: &str = "image.ppm";
@@ -180,8 +182,10 @@ fn main() {
     let camera = Camera::new(aspect_ratio, Vec3::new(0.0, 0.0, 0.0));
     let scene = build_scene();
     let pipeline = PostProcessingPipeline::new()
+        // .add_step(BilateralFilterStep {sigma_spatial: 1.0, sigma_depth: 0.2})
         .add_step(Clipping)
-        .add_step(GammaCorrection {gamma: 2.2});
+        .add_step(GammaCorrection {gamma: 2.2}
+        );
 
     println!("start, samples per pixel: {}", SAMPLES);
 
